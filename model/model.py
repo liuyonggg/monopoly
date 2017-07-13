@@ -5,7 +5,9 @@ class Dice(object):
         # set random seed
         random.seed(0)
     def roll(self):
-        return random.randint(1, 6) + random.randint(1, 6)
+        res1 = random.randint(1, 6)
+        res2 = random.randint(1, 6)
+        return (res1, res2)
 
 class Board(object):
     def __init__(self, game):
@@ -67,7 +69,7 @@ class RailInfo(PropInfo):
 
 class NIYInfo(Info):
     def __init__(self):
-        pass
+        self.cost = 0
 
     def get_cost(self):
         return 0
@@ -134,31 +136,45 @@ class Player(object):
         self.game = game
 
     def add_property(self, prop):
-        if self.cash >= prop.info.cost:
+        if ((self.cash >= prop.info.cost) and (not self.game.is_owned(self.board, self))):
             self.properties.append(prop)
             self.cash -= prop.info.cost
 
     def move(self):
-        steps = self.game.roll_dice()
+        (d1, d2) = self.game.roll_dice()
+        steps = d1 + d2
+        self.pos += steps
         if ((steps + self.pos) >= self.board.length):
             self.pos -= self.board.length
             self.cash += 200
-        self.pos += steps
-        assert (self.pos >= 0)
-        self.strategy.decide(Prop(self.board.get_position_info(self.pos), False), self.cash)
+            self.pos += steps
+            assert (self.pos >= 0)
+            p = Prop(self.board.get_position_info(self.pos), False)
+            if self.strategy.decide(p, self.cash):
+                self.add_property(p)
+
+        if self.game.is_owned(Prop(self.board.get_position_info(self.pos), False), self):
+            self.cash -= Prop(self.board.get_position_info(self.pos), False).get_rent()
+
+        print self.cash
+        print self.properties
+
+        if d1 == d2:
+            self.move()
 
 class Strategy(object):
     def __init__(self):
         pass
 
     def decide(self, prop, cash):
-        pass
+        if cash >= 500:
+            return True
 
 class Game(object):
     def __init__(self):
         self.strategy = Strategy()
         self.board = Board(self)
-        self.players = [Player("Bob", 0, 1500, self.strategy, self.board, self)]
+        self.players = [Player("Bob", 0, 1500, self.strategy, self.board, self), Player("Joe", 0, 1500, self.strategy, self.board, self)]
         self.dice = Dice()
 
     def play(self):
@@ -172,3 +188,11 @@ class Game(object):
 
     def roll_dice(self):
         return self.dice.roll()
+
+    def is_owned(self, prop, p):
+        for player in self.players:
+            if player.name != p.name:
+                for property in player.properties:
+                    if property.info.name == prop.info.name:
+                        return True
+        return False
